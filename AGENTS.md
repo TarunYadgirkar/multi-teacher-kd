@@ -18,5 +18,7 @@ Read README.md for design; this file tracks live state.
 - TRL 1.10 gotcha: the GKD collator splits `messages` into prompt/completion — every training example MUST end with an assistant message or it throws "empty conversation". Datasets here carry benchmark reference answers as the assistant turn.
 - Probe (offset 0) and eval (offset n_probe) draw disjoint slices of the test splits — keep it that way or the learned policy is selected on its own eval set.
 - MBPP-sanitized train split has only ~120 rows; loaders clamp with a warning.
+- MPS SIGSEGV gotcha (found by sibling session -62): passing a path STRING as model/teacher_model to trl trainers routes through trl's create_model_from_path → transformers 5.15 threaded weight loading → segfault on MPS. Always preload with from_pretrained and pass the model object (this repo already does).
+- 2026-08-22: pilot probe done, results/probe.json committed. Instruct best overall (C collapses into A); learned map: code→Coder, math→Math, qa→Instruct, summ→Coder (summ is a near-tie with Instruct).
 - Next: run probe + baseline eval, then pilot conditions A/C/D locally or on rented GPU; E only if D shows a real effect.
 - Lane: this repo is exclusively owned by session -3e per cross-session coordination 2026-08-22.
