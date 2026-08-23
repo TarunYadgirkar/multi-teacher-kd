@@ -1,0 +1,33 @@
+# Fast local sanity check: tiny models, tiny data, 2 optimizer steps per shard.
+student: HuggingFaceTB/SmolLM2-135M-Instruct
+teachers:
+  - HuggingFaceTB/SmolLM2-360M-Instruct
+  - HuggingFaceTB/SmolLM2-135M-Instruct
+policy: task
+category_map:
+  math: HuggingFaceTB/SmolLM2-360M-Instruct
+  code: HuggingFaceTB/SmolLM2-360M-Instruct
+  qa: HuggingFaceTB/SmolLM2-135M-Instruct
+  summ: HuggingFaceTB/SmolLM2-135M-Instruct
+n_train_per_category: 4
+n_eval_per_category: 2
+n_probe_per_category: 2
+rounds: 1
+max_steps_per_shard: 2
+output_dir: outputs/smoke
+run_code_eval: false
+gen_batch_size: 4
+seed: 0
+lora:
+  r: 8
+  alpha: 16
+gkd:
+  lmbda: 0.5
+  beta: 0.5
+  temperature: 1.0
+  max_new_tokens: 32
+  max_length: 512
+  learning_rate: 1.0e-4
+  per_device_train_batch_size: 2
+  gradient_accumulation_steps: 1
+  logging_steps: 1

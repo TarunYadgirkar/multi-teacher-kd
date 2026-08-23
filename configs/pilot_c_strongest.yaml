@@ -1,0 +1,30 @@
+# Condition c_strongest
+student: Qwen/Qwen2.5-0.5B-Instruct
+teachers:
+  - Qwen/Qwen2.5-1.5B-Instruct
+  - Qwen/Qwen2.5-Coder-1.5B-Instruct
+  - Qwen/Qwen2.5-Math-1.5B-Instruct
+policy: strongest
+probe_results: results/probe.json
+n_train_per_category: 125   # 500 total
+n_eval_per_category: 50
+n_probe_per_category: 25
+rounds: 2
+max_steps_per_shard: -1
+output_dir: outputs/pilot_c_strongest
+run_code_eval: true
+gen_batch_size: 8
+seed: 0
+lora:
+  r: 16
+  alpha: 32
+gkd:
+  lmbda: 0.5
+  beta: 0.5
+  temperature: 1.0
+  max_new_tokens: 256
+  max_length: 1024
+  learning_rate: 1.0e-4
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 4
+  logging_steps: 5
