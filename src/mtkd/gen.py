@@ -28,7 +28,10 @@ def generate(model, tokenizer, messages_batch: list[list[dict]], max_new_tokens:
              batch_size: int = 8) -> list[str]:
     outputs: list[str] = []
     for i in range(0, len(messages_batch), batch_size):
-        chunk = messages_batch[i : i + batch_size]
+        chunk = [
+            m[:-1] if m[-1]["role"] == "assistant" else m
+            for m in messages_batch[i : i + batch_size]
+        ]
         prompts = [
             tokenizer.apply_chat_template(m, tokenize=False, add_generation_prompt=True)
             for m in chunk

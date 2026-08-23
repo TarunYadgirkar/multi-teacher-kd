@@ -13,11 +13,21 @@ MATH_INSTRUCTION = "Solve the problem. End with the final numeric answer after '
 SUMM_INSTRUCTION = "Summarize the following dialogue in one or two sentences."
 
 
-def _math(split: str, n: int) -> list[dict]:
-    ds = load_dataset("openai/gsm8k", "main", split=split).select(range(n))
+def _slice(ds, n: int, offset: int):
+    end = min(offset + n, len(ds))
+    if end - offset < n:
+        print(f"warning: requested {n} examples at offset {offset}, split has {len(ds)}")
+    return ds.select(range(offset, end))
+
+
+def _math(split: str, n: int, offset: int) -> list[dict]:
+    ds = _slice(load_dataset("openai/gsm8k", "main", split=split), n, offset)
     return [
         {
-            "messages": [{"role": "user", "content": f"{MATH_INSTRUCTION}\n\n{ex['question']}"}],
+            "messages": [
+                {"role": "user", "content": f"{MATH_INSTRUCTION}\n\n{ex['question']}"},
+                {"role": "assistant", "content": ex["answer"]},
+            ],
             "category": "math",
             "reference": ex["answer"].split("####")[-1].strip(),
         }
@@ -25,8 +35,8 @@ def _math(split: str, n: int) -> list[dict]:
     ]
 
 
-def _code(split: str, n: int) -> list[dict]:
-    ds = load_dataset("google-research-datasets/mbpp", "sanitized", split=split).select(range(n))
+def _code(split: str, n: int, offset: int) -> list[dict]:
+    ds = _slice(load_dataset("google-research-datasets/mbpp", "sanitized", split=split), n, offset)
     return [
         {
             "messages": [
@@ -37,7 +47,8 @@ def _code(split: str, n: int) -> list[dict]:
                         + "\n".join(ex["test_list"])
                         + "\nReply with only a Python code block."
                     ),
-                }
+                },
+                {"role": "assistant", "content": f"```python\n{ex['code']}\n```"},
             ],
             "category": "code",
             "reference": "\n".join(ex["test_list"]),
@@ -46,8 +57,8 @@ def _code(split: str, n: int) -> list[dict]:
     ]
 
 
-def _qa(split: str, n: int) -> list[dict]:
-    ds = load_dataset("allenai/ai2_arc", "ARC-Challenge", split=split).select(range(n))
+def _qa(split: str, n: int, offset: int) -> list[dict]:
+    ds = _slice(load_dataset("allenai/ai2_arc", "ARC-Challenge", split=split), n, offset)
     out = []
     for ex in ds:
         choices = "\n".join(
@@ -56,7 +67,8 @@ def _qa(split: str, n: int) -> list[dict]:
         out.append(
             {
                 "messages": [
-                    {"role": "user", "content": f"{ex['question']}\n{choices}\n\n{ARC_INSTRUCTION}"}
+                    {"role": "user", "content": f"{ex['question']}\n{choices}\n\n{ARC_INSTRUCTION}"},
+                    {"role": "assistant", "content": ex["answerKey"]},
                 ],
                 "category": "qa",
                 "reference": ex["answerKey"],
@@ -65,11 +77,14 @@ def _qa(split: str, n: int) -> list[dict]:
     return out
 
 
-def _summ(split: str, n: int) -> list[dict]:
-    ds = load_dataset("knkarthick/samsum", split=split).select(range(n))
+def _summ(split: str, n: int, offset: int) -> list[dict]:
+    ds = _slice(load_dataset("knkarthick/samsum", split=split), n, offset)
     return [
         {
-            "messages": [{"role": "user", "content": f"{SUMM_INSTRUCTION}\n\n{ex['dialogue']}"}],
+            "messages": [
+                {"role": "user", "content": f"{SUMM_INSTRUCTION}\n\n{ex['dialogue']}"},
+                {"role": "assistant", "content": ex["summary"]},
+            ],
             "category": "summ",
             "reference": ex["summary"],
         }
@@ -81,9 +96,12 @@ _LOADERS = {"math": _math, "code": _code, "qa": _qa, "summ": _summ}
 _EVAL_SPLITS = {"math": "test", "code": "test", "qa": "test", "summ": "test"}
 
 
-def build_dataset(n_per_category: int, split: str = "train", seed: int = 0) -> Dataset:
+def build_dataset(
+    n_per_category: int, split: str = "train", seed: int = 0, offset: int = 0
+) -> Dataset:
+    """offset keeps probe and eval sets disjoint when both draw from test splits."""
     rows: list[dict] = []
     for cat in CATEGORIES:
         actual_split = split if split == "train" else _EVAL_SPLITS[cat]
-        rows.extend(_LOADERS[cat](actual_split, n_per_category))
+        rows.extend(_LOADERS[cat](actual_split, n_per_category, offset))
     return Dataset.from_list(rows).shuffle(seed=seed)

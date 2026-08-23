@@ -22,7 +22,10 @@ def main() -> None:
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
 
-    eval_set = build_dataset(cfg["n_eval_per_category"], split="eval", seed=2)
+    eval_set = build_dataset(
+        cfg["n_eval_per_category"], split="eval", seed=2,
+        offset=cfg["n_probe_per_category"],
+    )
 
     if (Path(args.model) / "adapter_config.json").exists():
         model, tokenizer = load_model(cfg["student"])
