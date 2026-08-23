@@ -14,6 +14,9 @@ Read README.md for design; this file tracks live state.
 
 ## Ongoing
 
-- 2026-08-22: repo scaffolded (data/probe/train/eval + configs A/C/D/E + smoke). Smoke test status: see below/git log.
+- 2026-08-22: repo scaffolded (data/probe/train/eval + configs A/C/D/E + smoke). Smoke test PASSED end-to-end on MPS (train both shards + probe + eval).
+- TRL 1.10 gotcha: the GKD collator splits `messages` into prompt/completion — every training example MUST end with an assistant message or it throws "empty conversation". Datasets here carry benchmark reference answers as the assistant turn.
+- Probe (offset 0) and eval (offset n_probe) draw disjoint slices of the test splits — keep it that way or the learned policy is selected on its own eval set.
+- MBPP-sanitized train split has only ~120 rows; loaders clamp with a warning.
 - Next: run probe + baseline eval, then pilot conditions A/C/D locally or on rented GPU; E only if D shows a real effect.
 - Lane: this repo is exclusively owned by session -3e per cross-session coordination 2026-08-22.
