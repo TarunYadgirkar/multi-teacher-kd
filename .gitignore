@@ -4,7 +4,8 @@ __pycache__/
 .python-version
 outputs/
 data/
-results/
+results/smoke/
 wandb/
 .DS_Store
 *.egg-info/
+.pytest_cache/

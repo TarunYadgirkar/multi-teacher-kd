@@ -1,33 +1,45 @@
-# Fast local sanity check: tiny models, tiny data, 2 optimizer steps per shard.
+# End-to-end check with tiny models in a few minutes:
+#   uv run mtkd reproduce --config configs/smoke.yaml
 student: HuggingFaceTB/SmolLM2-135M-Instruct
 teachers:
-  - HuggingFaceTB/SmolLM2-360M-Instruct
-  - HuggingFaceTB/SmolLM2-135M-Instruct
-policy: task
-category_map:
-  math: HuggingFaceTB/SmolLM2-360M-Instruct
-  code: HuggingFaceTB/SmolLM2-360M-Instruct
-  qa: HuggingFaceTB/SmolLM2-135M-Instruct
-  summ: HuggingFaceTB/SmolLM2-135M-Instruct
-n_train_per_category: 4
-n_eval_per_category: 2
-n_probe_per_category: 2
-rounds: 1
-max_steps_per_shard: 2
-output_dir: outputs/smoke
-run_code_eval: false
-gen_batch_size: 4
-seed: 0
-lora:
-  r: 8
-  alpha: 16
-gkd:
-  lmbda: 0.5
+  big: HuggingFaceTB/SmolLM2-360M-Instruct
+  small: HuggingFaceTB/SmolLM2-135M-Instruct
+default_teacher: big
+revisions:
+  HuggingFaceTB/SmolLM2-135M-Instruct: 12fd25f77366fa6b3b4b768ec3050bf629380bac
+  HuggingFaceTB/SmolLM2-360M-Instruct: a10cc1512eabd3dde888204e902eca88bddb4951
+mps_memory_fraction: 0.3
+paths: {results: results/smoke, outputs: outputs/smoke, figures: results/smoke/figures}
+
+data:
+  train: {math: 4, code: 4, qa: 4, summ: 4}
+  probe: {math: 3, code: 3, qa: 3, summ: 3}
+  eval: {math: 3, code: 3, qa: 3, summ: 3}
+
+generation:
+  batch_size: 4
+  first_pass: 16
+  max_new_tokens: {math: 32, code: 32, qa: 8, summ: 24}
+  code_workers: 2
+
+train:
+  seeds: [0]
+  epochs: 1
+  batch_size: 2
+  learning_rate: 1.0e-4
+  warmup_ratio: 0.1
+  max_grad_norm: 1.0
+  lmbda: 1.0
   beta: 0.5
   temperature: 1.0
-  max_new_tokens: 32
-  max_length: 512
-  learning_rate: 1.0e-4
-  per_device_train_batch_size: 2
-  gradient_accumulation_steps: 1
-  logging_steps: 1
+  max_new_tokens: {math: 16, code: 16, qa: 4, summ: 16}
+  loss_chunk_tokens: 64
+  teacher_cache: 1
+  lora: {r: 8, alpha: 16, dropout: 0.0}
+
+conditions:
+  sft: {kind: sft}
+  fixed: {policy: fixed, teacher: big}
+  task: {policy: map, map: {math: big, code: big, qa: small, summ: small}}
+  learned: {policy: learned}
+  ensemble: {policy: ensemble}

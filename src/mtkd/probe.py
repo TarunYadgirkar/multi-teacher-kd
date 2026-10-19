@@ -1,55 +1,55 @@
-"""Score every teacher per category on a held-out probe set.
+"""Probe every teacher on the validation-style probe split, under the student's chat
+template, and derive the learned category -> teacher map from the per-item scores."""
 
-Output feeds the 'strongest' and 'learned' policies:
-results/probe.json = {teacher_name: {math: .., code: .., qa: .., summ: .., overall: ..}}
-"""
-
-import argparse
 import json
 from pathlib import Path
 
-import yaml
-
-from mtkd.data import build_dataset
-from mtkd.evaluate import aggregate, score
-from mtkd.gen import generate, load_model
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", required=True)
-    parser.add_argument("--out", default="results/probe.json")
-    args = parser.parse_args()
-    with open(args.config) as f:
-        cfg = yaml.safe_load(f)
-
-    probe_set = build_dataset(cfg["n_probe_per_category"], split="eval", seed=1)
-    run_code = cfg.get("run_code_eval", True)
-    results: dict[str, dict] = {}
-
-    for name in cfg["teachers"]:
-        print(f"probing {name} on {len(probe_set)} prompts")
-        model, tokenizer = load_model(name)
-        outputs = generate(
-            model, tokenizer, probe_set["messages"],
-            max_new_tokens=cfg["gkd"]["max_new_tokens"],
-            batch_size=cfg.get("gen_batch_size", 8),
-        )
-        rows = [
-            {"category": ex["category"],
-             "score": score(ex["category"], out, ex["reference"], run_code=run_code)}
-            for ex, out in zip(probe_set, outputs)
-        ]
-        results[name] = aggregate(rows)
-        print(f"  {results[name]}")
-        del model
-
-    out_path = Path(args.out)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w") as f:
-        json.dump(results, f, indent=2)
-    print(f"wrote {out_path}")
+from mtkd.data import load_split
+from mtkd.policies import select_learned_map
+from mtkd.run_eval import read_rows, run
+from mtkd.stats import mean_ci
 
 
-if __name__ == "__main__":
-    main()
+def probe_dir(cfg: dict) -> Path:
+    return Path(cfg["paths"]["results"]) / "probe"
+
+
+def run_probe(cfg: dict, force: bool = False) -> dict:
+    out = probe_dir(cfg)
+    out.mkdir(parents=True, exist_ok=True)
+    examples = None
+    for key, name in cfg["teachers"].items():
+        stem = out / key
+        if stem.with_suffix(".json").exists() and not force:
+            print(f"probe {key}: cached")
+            continue
+        examples = examples or load_split("probe", cfg["data"]["probe"])
+        print(f"probe {key} ({name}) on {len(examples)} items", flush=True)
+        run(cfg, name, examples, stem, {"teacher": key, "split": "probe"})
+    return summarize_probe(cfg)
+
+
+def summarize_probe(cfg: dict) -> dict:
+    out = probe_dir(cfg)
+    per_item: dict[str, dict[str, list[float]]] = {}
+    table: dict[str, dict] = {}
+    for key in cfg["teachers"]:
+        rows = sorted(read_rows(out / f"{key}.jsonl.gz"), key=lambda r: r["id"])
+        per_item[key] = {}
+        for row in rows:
+            per_item[key].setdefault(row["category"], []).append(row["score"])
+        table[key] = {c: mean_ci(v) for c, v in per_item[key].items()}
+        table[key]["truncated"] = {
+            c: sum(r["truncated"] for r in rows if r["category"] == c) / len(per_item[key][c])
+            for c in per_item[key]
+        }
+    learned, evidence = select_learned_map(per_item, cfg["default_teacher"])
+    summary = {"teachers": cfg["teachers"], "scores": table, "learned_map": learned,
+               "evidence": evidence}
+    (out / "summary.json").write_text(json.dumps(summary, indent=2))
+    return summary
+
+
+def load_learned_map(cfg: dict) -> dict[str, str] | None:
+    path = probe_dir(cfg) / "summary.json"
+    return json.loads(path.read_text())["learned_map"] if path.exists() else None

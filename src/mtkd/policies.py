@@ -1,52 +1,62 @@
-"""Teacher-selection policies. Each returns teacher index per example.
+"""Teacher-selection policies. A policy maps one category-homogeneous batch to the
+teacher(s) that score it.
 
-fixed:    always teachers[0]
-random:   uniform over teachers (seeded)
-strongest: single teacher with best overall probe score
-task:     hand-specified category -> teacher map from config
-learned:  per-category argmax over probe win-rates
+fixed:    one named teacher for every batch
+map:      a hand-written category -> teacher map
+learned:  per category, the probe winner, but only when its paired-bootstrap CI against
+          the default teacher excludes zero; otherwise the default teacher
+random:   a uniformly random teacher per batch
+ensemble: every teacher, logit-averaged
 """
 
-import json
 import random
 
+from mtkd.stats import paired_diff_ci
 
-def assign_teachers(
-    dataset,
-    policy: str,
-    teachers: list[str],
-    category_map: dict[str, str] | None = None,
-    probe_results_path: str | None = None,
-    seed: int = 0,
-):
-    n = len(teachers)
+POLICIES = ("fixed", "map", "learned", "random", "ensemble")
+
+
+def teachers_for_batch(condition: dict, category: str, teacher_keys: list[str],
+                       rng: random.Random, learned_map: dict[str, str] | None = None) -> list[str]:
+    policy = condition["policy"]
     if policy == "fixed":
-        ids = [0] * len(dataset)
-    elif policy == "random":
-        rng = random.Random(seed)
-        ids = [rng.randrange(n) for _ in range(len(dataset))]
-    elif policy == "strongest":
-        probe = _load_probe(probe_results_path)
-        best = max(probe, key=lambda t: probe[t]["overall"])
-        ids = [teachers.index(best)] * len(dataset)
-    elif policy == "task":
-        if not category_map:
-            raise ValueError("task policy requires category_map in config")
-        ids = [teachers.index(category_map[ex["category"]]) for ex in dataset]
-    elif policy == "learned":
-        probe = _load_probe(probe_results_path)
-        by_cat = {
-            cat: max(probe, key=lambda t: probe[t].get(cat, 0.0))
-            for cat in {ex["category"] for ex in dataset}
-        }
-        ids = [teachers.index(by_cat[ex["category"]]) for ex in dataset]
-    else:
-        raise ValueError(f"unknown policy: {policy}")
-    return dataset.add_column("teacher_id", ids)
+        return [condition["teacher"]]
+    if policy == "map":
+        return [condition["map"][category]]
+    if policy == "learned":
+        if learned_map is None:
+            raise ValueError("learned policy needs the probe's learned map (run the probe stage)")
+        return [learned_map[category]]
+    if policy == "random":
+        return [rng.choice(teacher_keys)]
+    if policy == "ensemble":
+        return list(teacher_keys)
+    raise ValueError(f"unknown policy: {policy}")
 
 
-def _load_probe(path: str | None) -> dict:
-    if path is None:
-        raise ValueError("this policy requires probe_results_path (run mtkd.probe first)")
-    with open(path) as f:
-        return json.load(f)
+def select_learned_map(probe: dict[str, dict[str, list[float]]], default: str,
+                       seed: int = 0) -> tuple[dict[str, str], dict]:
+    """probe[teacher][category] holds per-item scores on the same items for every teacher.
+    Returns the map and the evidence behind each choice."""
+    categories = sorted(next(iter(probe.values())))
+    chosen, evidence = {}, {}
+    for category in categories:
+        means = {t: sum(s[category]) / len(s[category]) for t, s in probe.items()}
+        best = max(sorted(means), key=means.__getitem__)
+        if best == default:
+            chosen[category] = default
+            evidence[category] = {"winner": best, "means": means, "vs_default": None}
+            continue
+        ci = paired_diff_ci(probe[best][category], probe[default][category], seed=seed)
+        chosen[category] = best if ci["lo"] > 0 else default
+        evidence[category] = {"winner": best, "means": means, "vs_default": ci}
+    return chosen, evidence
+
+
+def describe(condition: dict, teacher_keys: list[str], learned_map: dict[str, str] | None,
+             categories: list[str]) -> dict[str, list[str]] | None:
+    """The deterministic category -> teachers map a condition implies (None for random)."""
+    if condition.get("kind") == "sft" or condition["policy"] == "random":
+        return None
+    rng = random.Random(0)
+    return {c: teachers_for_batch(condition, c, teacher_keys, rng, learned_map) for c in categories}

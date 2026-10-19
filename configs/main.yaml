@@ -1,0 +1,53 @@
+# Main experiment. `uv run mtkd reproduce` runs everything below; see README.md.
+student: Qwen/Qwen2.5-0.5B-Instruct
+teachers:
+  instruct: Qwen/Qwen2.5-1.5B-Instruct
+  coder: Qwen/Qwen2.5-Coder-1.5B-Instruct
+  math: Qwen/Qwen2.5-Math-1.5B-Instruct
+default_teacher: instruct
+revisions:
+  Qwen/Qwen2.5-0.5B-Instruct: 7ae557604adf67be50417f59c2c2f167def9a775
+  Qwen/Qwen2.5-1.5B-Instruct: 989aa7980e4cf806f80c7fef2b1adb7bc71aa306
+  Qwen/Qwen2.5-Coder-1.5B-Instruct: 2e1fd397ee46e1388853d2af2c993145b0f1098a
+  Qwen/Qwen2.5-Math-1.5B-Instruct: aafeb0fc6f22cbf0eaeed126eff8be45b0360a35
+
+# Fraction of the MPS recommended working set the allocator may use (about 7.5 GB on a
+# 24 GB Mac). Ignored on CUDA and CPU.
+mps_memory_fraction: 0.42
+
+data:
+  train: {math: 256, code: 256, qa: 256, summ: 256}
+  probe: {math: 300, code: 100, qa: 299, summ: 300}
+  eval: {math: 500, code: null, qa: null, summ: 500}   # null = the whole test split
+
+generation:
+  batch_size: 32
+  first_pass: 384
+  max_new_tokens: {math: 1024, code: 768, qa: 32, summ: 256}
+  code_workers: 4
+
+train:
+  seeds: [0, 1, 2]
+  epochs: 1
+  batch_size: 16
+  learning_rate: 2.0e-4
+  warmup_ratio: 0.05
+  max_grad_norm: 1.0
+  lmbda: 1.0          # share of batches sampled from the student (1.0 = fully on-policy)
+  beta: 0.5           # generalized JSD interpolation (0 forward KL, 1 reverse KL)
+  temperature: 1.0
+  max_new_tokens: {math: 384, code: 384, qa: 16, summ: 128}
+  micro_batch_size: 4   # forward/backward in micro-batches; gradients accumulate to batch_size
+  loss_chunk_tokens: 128
+  teacher_cache: 1
+  lora: {r: 16, alpha: 32, dropout: 0.0}
+
+conditions:
+  sft: {kind: sft}
+  instruct: {policy: fixed, teacher: instruct}
+  task: {policy: map, map: {math: math, code: coder, qa: instruct, summ: instruct}}
+  learned: {policy: learned}
+  coder: {policy: fixed, teacher: coder}
+  math: {policy: fixed, teacher: math}
+  random: {policy: random}
+  ensemble: {policy: ensemble}
