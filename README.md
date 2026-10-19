@@ -1,55 +1,59 @@
 # multi-teacher-kd
 
 Which teacher should teach a small LLM, per task category? On-policy knowledge
-distillation (TRL GKD) from multiple same-family teachers into one student,
-comparing teacher-selection policies as the experimental variable.
+distillation (TRL GKD) from three same-family teachers into one student, with the
+teacher-selection policy as the experimental variable.
+
+Teachers: Qwen2.5-1.5B Instruct, Coder and Math (shared tokenizer, which GKD needs
+because it matches token-level distributions). Student: Qwen2.5-0.5B-Instruct + LoRA.
+Model revisions are pinned in `configs/main.yaml`.
+
+## Result
+
+Routing each category to its "specialist" teacher does not beat using the general
+instruct teacher for everything. Both pre-registered comparisons come out negative:
+
+| Comparison | dG (97.5% CI) |
+|---|---|
+| task-mapped teachers vs instruct | -6.1 [-8.8, -3.5] |
+| learned (probe-chosen) teachers vs instruct | -2.9 [-5.3, -0.6] |
+
+G is the macro normalized gain over the untrained student, in points of headroom.
+The loss comes almost entirely from math: the Math teacher scores best on GSM8K
+itself but teaches a tool-call answer style the student copies. Full tables,
+per-category differences and diagnostics are in [REPORT.md](REPORT.md).
+
+**Seeds:** the protocol pre-registered 3 training seeds (`train.seeds: [0, 1, 2]`).
+Results here use 2 seeds (0 and 1); seed 2 was not run for time. CIs are item
+bootstraps pooled over the seeds that ran, and the seed sd column shows run-to-run
+spread.
 
 ## Conditions
 
-| Condition | Policy | Teacher choice |
-|---|---|---|
-| A | `fixed` | always the general instruct teacher |
-| C | `strongest` | single best teacher by overall probe score |
-| D | `task` | hand-mapped category → teacher |
-| E | `learned` | per-category argmax over probe win-rates |
-
-(B/random exists in `policies.py` but is not a pilot condition.)
-
-Teachers: Qwen2.5-1.5B Instruct / Coder / Math (shared tokenizer — required, since
-GKD matches token-level distributions). Student: Qwen2.5-0.5B-Instruct + LoRA.
+| Condition | Teacher choice |
+|---|---|
+| `sft` | plain SFT on reference answers, no teacher |
+| `instruct` | always the general instruct teacher |
+| `coder`, `math` | always that single teacher |
+| `task` | hand-mapped category to teacher |
+| `learned` | probe winner per category, only when its CI against instruct excludes zero |
+| `random` | uniformly random teacher per batch |
+| `ensemble` | all three teachers, logit-averaged |
 
 ## Data
 
-Real benchmarks, one category each: GSM8K (math), MBPP-sanitized (code),
-ARC-Challenge (qa), SamSum (summ). Train prompts from train splits; probe and
-eval from test splits with different seeds/slices.
-
-Scoring: math numeric exact-match, qa letter match, summ ROUGE-L F, code
-executes generated code against MBPP asserts (`run_code_eval: false` to skip —
-it runs untrusted model output in a subprocess).
+GSM8K (math), MBPP-sanitized (code), ARC-Challenge (qa), SamSum (summ). Train prompts
+come from train splits; probe and eval come from disjoint test slices. Code scoring
+runs model output against MBPP asserts in a sandboxed subprocess.
 
 ## Run
 
 ```sh
 uv sync
-uv run python -m mtkd.probe --config configs/pilot_a_fixed.yaml   # teacher win-rates
-uv run python -m mtkd.run_eval --config configs/pilot_a_fixed.yaml \
-  --model Qwen/Qwen2.5-0.5B-Instruct --out results/baseline.json  # untrained baseline
-uv run python -m mtkd.train --config configs/pilot_d_task.yaml
-uv run python -m mtkd.run_eval --config configs/pilot_d_task.yaml \
-  --model outputs/pilot_d_task/final --out results/pilot_d_task.json
+uv run mtkd reproduce                       # probe, base eval, training matrix, report
+uv run mtkd reproduce --stages matrix --seeds 2
+uv run mtkd report                          # rebuild REPORT.md and the figure from results/
 ```
 
-Smoke test (SmolLM2-135M/360M, ~minutes on MPS): swap in `configs/smoke.yaml`.
-
-## Implementation notes
-
-- TRL ≥ 1.0: GKD lives in `trl.experimental.gkd`.
-- Multi-teacher training partitions data by assigned teacher and trains
-  interleaved rounds (one pass per teacher shard per round). Optimizer state
-  resets per shard — a known simplification at pilot scale; a per-batch
-  teacher-swapping trainer is the upgrade path if it matters.
-- `check_tokenizer_compat` hard-fails on cross-tokenizer teachers.
-- Local (M-series, 24GB): pilot configs fit with bf16 (3×1.5B teachers ≈ 9GB +
-  0.5B student), but on-policy generation makes training slow — local machine is
-  for smoke + probe; rent one A100/4090 for the full matrix.
+`configs/smoke.yaml` runs the whole pipeline on tiny models in minutes. The full
+matrix runs on a 24 GB M-series Mac but takes days; a single CUDA GPU is much faster.

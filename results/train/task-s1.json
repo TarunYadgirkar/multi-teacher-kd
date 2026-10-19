@@ -1,0 +1,64 @@
+{
+  "condition": "task",
+  "seed": 1,
+  "spec": {
+    "policy": "map",
+    "map": {
+      "math": "math",
+      "code": "coder",
+      "qa": "instruct",
+      "summ": "instruct"
+    }
+  },
+  "train": {
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "epochs": 1,
+    "batch_size": 16,
+    "learning_rate": 0.0002,
+    "warmup_ratio": 0.05,
+    "max_grad_norm": 1.0,
+    "lmbda": 1.0,
+    "beta": 0.5,
+    "temperature": 1.0,
+    "max_new_tokens": {
+      "math": 384,
+      "code": 384,
+      "qa": 16,
+      "summ": 128
+    },
+    "micro_batch_size": 4,
+    "loss_chunk_tokens": 128,
+    "teacher_cache": 1,
+    "lora": {
+      "r": 16,
+      "alpha": 32,
+      "dropout": 0.0
+    }
+  },
+  "learned_map": null,
+  "steps": 64,
+  "examples": 1024,
+  "teacher_loads": 45,
+  "minutes": 13.8,
+  "config_fingerprint": "234b02ec92a2",
+  "provenance": {
+    "git_sha": "718f4e1832611ee2892d477d455a42e79a92e6b9",
+    "git_dirty": true,
+    "versions": {
+      "torch": "2.13.0",
+      "transformers": "5.15.1",
+      "peft": "0.20.0",
+      "datasets": "5.0.1"
+    },
+    "python": "3.12.13",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "chip": "Apple M5 Pro",
+    "device": "mps",
+    "time_utc": "2026-10-19T06:13:10+00:00"
+  },
+  "finished": true
+}

@@ -1,0 +1,63 @@
+{
+  "model": "outputs/math/seed1/adapter",
+  "run": "math-s1",
+  "condition": "math",
+  "seed": 1,
+  "split": "eval",
+  "summary": {
+    "code": {
+      "n": 257,
+      "score": 0.42412451361867703,
+      "truncated": 0.07392996108949416,
+      "mean_tokens": 371.57587548638134
+    },
+    "math": {
+      "n": 500,
+      "score": 0.456,
+      "truncated": 0.022,
+      "mean_tokens": 336.15
+    },
+    "qa": {
+      "n": 1172,
+      "score": 0.23464163822525597,
+      "truncated": 1.0,
+      "mean_tokens": 32.0,
+      "gen_score": 0.0
+    },
+    "summ": {
+      "n": 500,
+      "score": 0.047021075956664916,
+      "truncated": 0.01,
+      "mean_tokens": 22.78,
+      "rouge1": 0.05736054428436791,
+      "rouge2": 0.005292623435751697,
+      "words": 16.398
+    }
+  },
+  "generation": {
+    "batch_size": 32,
+    "first_pass": 384,
+    "max_new_tokens": {
+      "math": 1024,
+      "code": 768,
+      "qa": 32,
+      "summ": 256
+    },
+    "code_workers": 4
+  },
+  "provenance": {
+    "git_sha": "718f4e1832611ee2892d477d455a42e79a92e6b9",
+    "git_dirty": true,
+    "versions": {
+      "torch": "2.13.0",
+      "transformers": "5.15.1",
+      "peft": "0.20.0",
+      "datasets": "5.0.1"
+    },
+    "python": "3.12.13",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "chip": "Apple M5 Pro",
+    "device": "mps",
+    "time_utc": "2026-10-19T07:49:50+00:00"
+  }
+}
