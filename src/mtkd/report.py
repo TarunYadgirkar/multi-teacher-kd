@@ -148,17 +148,30 @@ def _comparisons(res: Results) -> list[str]:
 def _diagnostics(res: Results, cfg: dict) -> list[str]:
     limits = ", ".join(f"{c} {cfg['generation']['max_new_tokens'][c]}" for c in CATEGORIES)
     lines = ["## Generation diagnostics", "",
-             f"Share of eval outputs that hit the token limit ({limits}), mean math output tokens, ARC "
-             "accuracy scored from the generated text instead of log-likelihood, and SamSum detail.", "",
-             "| Run | trunc math | trunc code | trunc summ | math tokens | ARC generative | ROUGE-1 / ROUGE-2 | summary words |",
-             "|---|---|---|---|---|---|---|---|"]
+             f"Share of eval outputs that hit the token limit ({limits}); mean math output tokens; "
+             "tool-style math answers, i.e. outputs that write Python and then a ```output block the "
+             "model made up itself, with their accuracy; ARC accuracy scored from the generated text "
+             "instead of log-likelihood; SamSum detail.", "",
+             "| Run | trunc math | trunc code | trunc summ | math tokens | tool-style math (acc) | "
+             "ARC generative | ROUGE-1 / ROUGE-2 | summary words |",
+             "|---|---|---|---|---|---|---|---|---|"]
     for name, summary in res.summaries.items():
         s = summary["summary"]
+        share, acc = tool_style(res.rows[name])
         lines.append(f"| {name} | {_pct(s['math']['truncated'])}% | {_pct(s['code']['truncated'])}% | "
                      f"{_pct(s['summ']['truncated'])}% | {s['math']['mean_tokens']:.0f} | "
-                     f"{_pct(s['qa']['gen_score'])} | {_pct(s['summ']['rouge1'])} / {_pct(s['summ']['rouge2'])} | "
-                     f"{s['summ']['words']:.1f} |")
+                     f"{_pct(share)}% ({_pct(acc) if acc is not None else '-'}) | {_pct(s['qa']['gen_score'])} | "
+                     f"{_pct(s['summ']['rouge1'])} / {_pct(s['summ']['rouge2'])} | {s['summ']['words']:.1f} |")
     return lines + [""]
+
+
+def tool_style(rows: list[dict]) -> tuple[float, float | None]:
+    """Share of math outputs in Qwen2.5-Math's tool-integrated format (code followed by a
+    ```output block), and their accuracy. Nothing executes that code during generation."""
+    math = [r for r in rows if r["category"] == "math"]
+    tool = [r for r in math if "```output" in r["output"]]
+    acc = sum(r["score"] for r in tool) / len(tool) if tool else None
+    return len(tool) / len(math), acc
 
 
 def _training(cfg: dict) -> list[str]:
