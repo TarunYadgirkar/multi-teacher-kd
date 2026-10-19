@@ -247,6 +247,38 @@ def _style(ax, title: str, xlabel: str) -> None:
     ax.set_xlabel(xlabel, fontsize=9, color=MUTED)
 
 
+OUTLIER_PTS = 12.0
+
+
+def _panel_limits(intervals: list[dict]) -> tuple[float, float]:
+    """x-range from rows whose mean is within OUTLIER_PTS of the median row, so one extreme
+    condition does not flatten every other row; outliers are drawn at the edge."""
+    means = sorted(100 * d["mean"] for d in intervals)
+    median = means[len(means) // 2]
+    core = [d for d in intervals if abs(100 * d["mean"] - median) <= OUTLIER_PTS]
+    lo = min(0.0, min(100 * d["lo"] for d in core))
+    hi = max(0.0, max(100 * d["hi"] for d in core))
+    span = hi - lo
+    below = any(100 * d["mean"] < median - OUTLIER_PTS for d in intervals)
+    above = any(100 * d["mean"] > median + OUTLIER_PTS for d in intervals)
+    return lo - (0.3 if below else 0.08) * span, hi + (0.3 if above else 0.08) * span
+
+
+def _draw_row(ax, y: int, d: dict, color: str, limits: tuple[float, float]) -> None:
+    lo, hi = limits
+    mean = 100 * d["mean"]
+    if lo <= mean <= hi:
+        ax.plot([max(lo, 100 * d["lo"]), min(hi, 100 * d["hi"])], [y, y], color=color, lw=2,
+                solid_capstyle="round")
+        ax.plot(mean, y, "o", color=color, ms=8, mec=SURFACE, mew=2, zorder=3)
+        return
+    inset = 0.03 * (hi - lo)
+    edge, marker, align = (lo + inset, "<", "left") if mean < lo else (hi - inset, ">", "right")
+    ax.plot(edge, y, marker, color=color, ms=8, zorder=3)
+    ax.annotate(f"{mean:+.1f}", (edge, y), xytext=(8 if align == "left" else -8, -4),
+                textcoords="offset points", ha=align, va="top", fontsize=9, color=MUTED)
+
+
 def plot_results(res: Results, path: Path) -> None:
     import matplotlib
     matplotlib.use("Agg")
@@ -257,17 +289,18 @@ def plot_results(res: Results, path: Path) -> None:
     fig, axes = plt.subplots(1, len(panels), figsize=(14, 0.45 * len(names) + 1.7), sharey=True,
                              facecolor=SURFACE)
     for ax, (title, category) in zip(axes, panels):
-        for y, name in enumerate(names):
-            d = res.gain(name) if category is None else paired_diff_ci(res.scores[name][category], res.base[category])
-            color = ACCENT if name in (REFERENCE, *PRIMARY) else DEEMPH
-            ax.plot([100 * d["lo"], 100 * d["hi"]], [y, y], color=color, lw=2, solid_capstyle="round")
-            ax.plot(100 * d["mean"], y, "o", color=color, ms=8, mec=SURFACE, mew=2, zorder=3)
+        intervals = [res.gain(n) if category is None
+                     else paired_diff_ci(res.scores[n][category], res.base[category]) for n in names]
+        limits = _panel_limits(intervals)
+        for y, (name, d) in enumerate(zip(names, intervals)):
+            _draw_row(ax, y, d, ACCENT if name in (REFERENCE, *PRIMARY) else DEEMPH, limits)
+        ax.set_xlim(*limits)
         _style(ax, title, "points of headroom" if category is None else "points vs untrained")
     axes[0].set_yticks(range(len(names)), names, fontsize=10, color=INK)
     axes[0].invert_yaxis()
-    fig.suptitle("Change over the untrained student: seed mean and 95% CI. Blue marks the Instruct-only "
-                 "reference and the two pre-registered routing policies.", fontsize=10.5, color=INK,
-                 x=0.01, ha="left")
+    fig.suptitle("Change over the untrained student (seed mean, 95% CI). Blue: Instruct-only and the "
+                 "two pre-registered routing policies. Arrows mark values beyond the axis.",
+                 fontsize=10.5, color=INK, x=0.01, ha="left")
     fig.tight_layout()
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=160, facecolor=SURFACE)
