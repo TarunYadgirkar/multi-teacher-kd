@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this code or its results, please cite it as below."
+title: "multi-teacher-kd: which teacher should teach a small LLM, per task category?"
+authors:
+  - family-names: Yadgirkar
+    given-names: Tarun
+license: MIT
+repository-code: "https://github.com/TarunYadgirkar/multi-teacher-kd"
+version: 0.2.0
+date-released: 2026-10-19

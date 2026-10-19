@@ -10,6 +10,7 @@ revisions:
   HuggingFaceTB/SmolLM2-360M-Instruct: a10cc1512eabd3dde888204e902eca88bddb4951
 mps_memory_fraction: 0.3
 paths: {results: results/smoke, outputs: outputs/smoke, figures: results/smoke/figures}
+report_path: results/smoke/REPORT.md
 
 data:
   train: {math: 4, code: 4, qa: 4, summ: 4}
