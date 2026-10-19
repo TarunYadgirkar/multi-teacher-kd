@@ -1,0 +1,63 @@
+{
+  "model": "outputs/task/seed0/adapter",
+  "run": "task-s0",
+  "condition": "task",
+  "seed": 0,
+  "split": "eval",
+  "summary": {
+    "code": {
+      "n": 257,
+      "score": 0.4669260700389105,
+      "truncated": 0.01556420233463035,
+      "mean_tokens": 64.61089494163424
+    },
+    "math": {
+      "n": 500,
+      "score": 0.358,
+      "truncated": 0.034,
+      "mean_tokens": 365.638
+    },
+    "qa": {
+      "n": 1172,
+      "score": 0.5162116040955631,
+      "truncated": 0.0017064846416382253,
+      "mean_tokens": 9.228668941979523,
+      "gen_score": 0.514505119453925
+    },
+    "summ": {
+      "n": 500,
+      "score": 0.311465911140282,
+      "truncated": 0.0,
+      "mean_tokens": 29.76,
+      "rouge1": 0.4090340771617135,
+      "rouge2": 0.14330556331199207,
+      "words": 24.194
+    }
+  },
+  "generation": {
+    "batch_size": 32,
+    "first_pass": 384,
+    "max_new_tokens": {
+      "math": 1024,
+      "code": 768,
+      "qa": 32,
+      "summ": 256
+    },
+    "code_workers": 4
+  },
+  "provenance": {
+    "git_sha": "a139541aef6aafce318143eeae3b4375224c845e",
+    "git_dirty": false,
+    "versions": {
+      "torch": "2.13.0",
+      "transformers": "5.15.1",
+      "peft": "0.20.0",
+      "datasets": "5.0.1"
+    },
+    "python": "3.12.13",
+    "platform": "macOS-27.0.1-arm64-arm-64bit",
+    "chip": "Apple M5 Pro",
+    "device": "mps",
+    "time_utc": "2026-10-19T02:51:14+00:00"
+  }
+}
